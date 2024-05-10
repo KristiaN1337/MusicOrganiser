@@ -81,6 +81,8 @@ def rollback_changes(file_path_mapping, original_playlist_path, playlist_content
     try:
         original_playlist_path = original_playlist_path.replace('"', "")
 
+        playlist_contents = [line.strip() for line in playlist_contents if line.strip()]
+
         with open(original_playlist_path, "w", encoding="utf-8") as f:
             for line in playlist_contents:
                 f.write(line + "\n")
@@ -167,6 +169,7 @@ def organize_music_files(playlist_path, destination_dir=None):
 
         for line in playlist_contents:
             line = line.strip()
+
             if os.path.isfile(line):
                 artist, album = get_artist_and_album(line)
                 if artist is None or album is None:
@@ -200,11 +203,12 @@ def organize_music_files(playlist_path, destination_dir=None):
         print(f"{colors.GREEN}Music files organized successfully!{colors.END}")
         print()
 
-        return file_path_mapping, playlist_contents  # Return both variables
+        return file_path_mapping, playlist_contents
     except Exception as e:
         print(
             f"{colors.RED}Error reading or organizing playlist file '{playlist_path}': {e}{colors.END}"
         )
+
         rollback_changes(file_path_mapping, playlist_path, playlist_contents_memory)
         return None
 
@@ -214,72 +218,147 @@ def print_border_line():
     print("═" * terminal_width)
 
 
-def main():
-    new_playlist_path = None
+def merge_playlists(playlist_path_1, playlist_path_2=None):
+    try:
+        playlist_path_1 = shlex.split(playlist_path_1)[0]
 
+        if not playlist_path_2:
+            playlist_path_2 = input(
+                f"{colors.YELLOW}Enter the path to the second playlist file to merge into (press Enter for default): {colors.END}"
+            )
+            if not playlist_path_2:
+                playlist_path_2 = r"PATH_TO_DEFAULT_PLAYLIST"
+
+        backup_path = backup_playlist_file(playlist_path_2)
+        if not backup_path:
+            return False, None
+
+        with open(playlist_path_2, "r", encoding="utf-8") as f2:
+            last_char = f2.read()[-1:]
+            if last_char != "\n":
+                with open(playlist_path_2, "a", encoding="utf-8") as f2_append:
+                    f2_append.write("\n")
+
+        with open(playlist_path_1, "r", encoding="utf-8") as f1:
+            playlist1_contents = f1.read()
+
+        with open(playlist_path_2, "a", encoding="utf-8") as f2:
+            f2.write(playlist1_contents)
+
+        print()
+        print_border_line()
+        print()
+        print(f"{colors.GREEN}Playlists merged successfully!{colors.END}")
+        print()
+        print_border_line()
+        print()
+        return True, (playlist_path_2, playlist1_contents.splitlines())
+    except Exception as e:
+        print(f"{colors.RED}Error merging playlists: {e}{colors.END}")
+        return False, None
+
+
+def main():
     while True:
-        print_border(f"{colors.BLUE}KristiaN's Music Organiser v0.6{colors.END}")
+        print_border(f"{colors.BLUE}KristiaN's Music Sorter v6.01{colors.END}")
         print("\n" * 1)
 
-        if new_playlist_path:
-            playlist_path = new_playlist_path
-            new_playlist_path = None
-        else:
-            playlist_path = input(
-                f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
-            )
-            if playlist_path.lower() in ["exit", ""]:
-                return
-
-        destination_directory = input(
-            f"{colors.YELLOW}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
+        choice = input(
+            f"{colors.YELLOW}Enter '{colors.GREEN}1{colors.YELLOW}' to merge playlists or '{colors.GREEN}2{colors.YELLOW}' to organize music files: {colors.END}"
         )
         print()
 
-        if not destination_directory:
-            destination_directory = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
-
-        organize_result = organize_music_files(playlist_path, destination_directory)
-        while organize_result is None:
-            retry = input(
-                f"Enter '{colors.GREEN}retry{colors.END}' to try again, or press {colors.RED}Enter{colors.END} to exit:"
+        if choice == "1":
+            playlist_path_1 = input(
+                f"{colors.YELLOW}Enter the path to the first playlist file: {colors.END}"
             )
-            if retry.lower() == "retry" or retry.lower() == "r":
+            if playlist_path_1.lower() in ["exit", ""]:
+                return
+
+            merge_result, merge_info = merge_playlists(playlist_path_1)
+            if merge_result:
+                rollback_option = input(
+                    f"Do you want to '{colors.RED}ROLLBACK{colors.END}' the merge? (yes/no): "
+                )
+                if rollback_option.lower() == "yes":
+                    rollback_changes({}, *merge_info)
+                    print(f"{colors.GREEN}Rollback completed.{colors.END}")
+                continue
+            else:
+                return
+
+        elif choice == "2":
+            new_playlist_path = None
+
+            while True:
+                if new_playlist_path:
+                    playlist_path = new_playlist_path
+                    new_playlist_path = None
+                else:
+                    playlist_path = input(
+                        f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
+                    )
+                    if playlist_path.lower() in ["exit", ""]:
+                        return
+
+                destination_directory = input(
+                    f"{colors.YELLOW}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
+                )
+                print()
+
+                if not destination_directory:
+                    destination_directory = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
+
                 organize_result = organize_music_files(
                     playlist_path, destination_directory
                 )
-            else:
-                return
+                while organize_result is None:
+                    retry = input(
+                        f"Enter '{colors.GREEN}retry{colors.END}' to try again, or press {colors.RED}Enter{colors.END} to exit:"
+                    )
+                    if retry.lower() == "retry" or retry.lower() == "r":
+                        organize_result = organize_music_files(
+                            playlist_path, destination_directory
+                        )
+                    else:
+                        return
 
-        if organize_result:
-            file_path_mapping, playlist_contents = organize_result
+                if organize_result:
+                    file_path_mapping, playlist_contents = organize_result
 
-            num_files_moved = len(file_path_mapping)
-            print()
-            print_border(
-                f"{colors.BLUE}Total files moved: {num_files_moved}{colors.END}"
-            )
-            print("\n" * 1)
+                    num_files_moved = len(file_path_mapping)
+                    print()
+                    print_border(
+                        f"{colors.BLUE}Total files moved: {num_files_moved}{colors.END}"
+                    )
+                    print("\n" * 1)
 
-            prompt = input(
-                f"Enter '{colors.RED}ROLLBACK{colors.END}' to undo changes.\nEnter '{colors.GREEN}MENU{colors.END}' to organize again.\nEnter a new '{colors.YELLOW}PLAYLIST{colors.END}' path to instantly process.\nOr press '{colors.RED}ENTER{colors.END}' to close the script.\n\n{colors.YELLOW}========:{colors.END} "
-            )
-            if prompt.lower() == "rollback":
-                rollback_changes(file_path_mapping, playlist_path, playlist_contents)
-                response = input(
-                    f"Do you want to '{colors.GREEN}RESTART{colors.END}' or '{colors.RED}EXIT{colors.END}' the script?\n\n{colors.YELLOW}========:{colors.END} "
-                )
-                if response.lower() == "restart":
-                    continue
-                else:
-                    return
-            elif prompt.lower() == "menu":
-                continue
-            elif prompt:
-                new_playlist_path = prompt
-                continue
-            else:
-                return
+                    prompt = input(
+                        f"Enter '{colors.RED}ROLLBACK{colors.END}' to undo changes.\nEnter '{colors.GREEN}MENU{colors.END}' to organize again.\nEnter a new '{colors.YELLOW}PLAYLIST{colors.END}' path to instantly process.\nOr press '{colors.RED}ENTER{colors.END}' to close the script.\n\n{colors.YELLOW}========:{colors.END} "
+                    )
+                    if prompt.lower() == "rollback":
+                        rollback_changes(
+                            file_path_mapping,
+                            playlist_path,
+                            playlist_contents,
+                        )
+                        response = input(
+                            f"Do you want to '{colors.GREEN}RESTART{colors.END}' or '{colors.RED}EXIT{colors.END}' the script?\n\n{colors.YELLOW}========:{colors.END} "
+                        )
+                        if response.lower() == "restart":
+                            continue
+                        else:
+                            return
+                    elif prompt.lower() == "menu":
+                        break
+                    elif prompt:
+                        new_playlist_path = prompt
+                        break
+                    else:
+                        return
+        else:
+            print(f"{colors.RED}Invalid choice. Please enter '1' or '2'.{colors.END}")
+            continue
 
 
 if __name__ == "__main__":
