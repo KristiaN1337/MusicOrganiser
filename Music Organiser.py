@@ -82,7 +82,8 @@ def rollback_changes(file_path_mapping, original_playlist_path, playlist_content
         original_playlist_path = original_playlist_path.replace('"', "")
 
         with open(original_playlist_path, "w", encoding="utf-8") as f:
-            f.writelines(playlist_contents)
+            for line in playlist_contents:
+                f.write(line + "\n")
 
         print()
         print_border_line()
@@ -112,9 +113,22 @@ def rollback_changes(file_path_mapping, original_playlist_path, playlist_content
         print_border(f"{colors.RED}Error during rollback: {e}{colors.END}")
 
 
+def resolve_relative_paths(playlist_contents, playlist_dir):
+    resolved_paths = []
+    for line in playlist_contents:
+        line = line.strip()
+        if not os.path.isabs(line):
+            resolved_path = os.path.abspath(os.path.join(playlist_dir, line))
+            resolved_paths.append(resolved_path)
+        else:
+            resolved_paths.append(line)
+    return resolved_paths
+
+
 def organize_music_files(playlist_path, destination_dir=None):
     file_path_mapping = {}
     playlist_contents = []
+    playlist_contents_memory = []
 
     if destination_dir is None:
         destination_dir = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
@@ -130,8 +144,26 @@ def organize_music_files(playlist_path, destination_dir=None):
 
         with open(playlist_path, "r", encoding="utf-8") as f:
             playlist_contents = f.readlines()
+            playlist_contents_memory = playlist_contents[:]
 
-        playlist_contents_memory = playlist_contents[:]
+        playlist_contents = resolve_relative_paths(playlist_contents, playlist_dir)
+
+        missing_files = []
+        for line in playlist_contents:
+            line = line.strip()
+            if not os.path.isfile(line):
+                missing_files.append(line)
+
+        if missing_files:
+            print(f"{colors.RED}The following files are missing:")
+            print()
+            for file in missing_files:
+                print(file)
+            print()
+            print(
+                f"{colors.YELLOW}Please make sure all files are present and try again.{colors.END}"
+            )
+            return None
 
         for line in playlist_contents:
             line = line.strip()
@@ -159,41 +191,6 @@ def organize_music_files(playlist_path, destination_dir=None):
                 )
 
                 file_path_mapping[line] = destination_file_path
-            else:
-                resolved_path = os.path.abspath(os.path.join(playlist_dir, line))
-                if os.path.isfile(resolved_path):
-                    artist, album = get_artist_and_album(resolved_path)
-                    if artist is None or album is None:
-                        continue
-
-                    sanitized_artist = sanitize_filename(artist)
-                    sanitized_album = sanitize_filename(album)
-
-                    artist_dir = os.path.join(destination_dir, sanitized_artist)
-                    if not os.path.exists(artist_dir):
-                        os.makedirs(artist_dir)
-
-                    album_dir = os.path.join(artist_dir, sanitized_album)
-                    if not os.path.exists(album_dir):
-                        os.makedirs(album_dir)
-
-                    filename = os.path.basename(resolved_path)
-                    destination_file_path = os.path.join(album_dir, filename)
-                    shutil.move(resolved_path, destination_file_path)
-                    print()
-                    print(
-                        f"{colors.GREEN}Moved{colors.END} {colors.YELLOW}'{filename}'{colors.END} to {colors.BLUE}'{destination_file_path}'{colors.END}"
-                    )
-
-                    file_path_mapping[resolved_path] = destination_file_path
-                else:
-                    print(
-                        f"{colors.RED}File not found: {line}. Rolling back changes...{colors.END}"
-                    )
-                    rollback_changes(
-                        file_path_mapping, playlist_path, playlist_contents_memory
-                    )
-                    return None
 
         with open(playlist_path, "w", encoding="utf-8") as f:
             for new_path in file_path_mapping.values():
@@ -203,7 +200,7 @@ def organize_music_files(playlist_path, destination_dir=None):
         print(f"{colors.GREEN}Music files organized successfully!{colors.END}")
         print()
 
-        return file_path_mapping, playlist_contents
+        return file_path_mapping, playlist_contents  # Return both variables
     except Exception as e:
         print(
             f"{colors.RED}Error reading or organizing playlist file '{playlist_path}': {e}{colors.END}"
@@ -218,35 +215,50 @@ def print_border_line():
 
 
 def main():
-    print_border(f"{colors.BLUE}KristiaN's Music Organiser v0.4{colors.END}")
-    print("\n" * 1)
-
-    playlist_path = input(
-        f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
-    )
-    destination_directory = input(
-        f"{colors.YELLOW}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
-    )
-    print()
-
-    if not destination_directory:
-        destination_directory = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
-
-    organize_result = organize_music_files(playlist_path, destination_directory)
-    if organize_result:
-        file_path_mapping, playlist_contents = organize_result
-
-        num_files_moved = len(file_path_mapping)
-        print()
-        print_border(f"{colors.BLUE}Total files moved: {num_files_moved}{colors.END}")
+    while True:
+        print_border(f"{colors.BLUE}KristiaN's Music Organiser v0.5{colors.END}")
         print("\n" * 1)
 
-        prompt = input(
-            f"Enter '{colors.RED}rollback{colors.END}' to undo changes, or press {colors.GREEN}Enter{colors.END} to close the script: "
+        playlist_path = input(
+            f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
         )
+        destination_directory = input(
+            f"{colors.YELLOW}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
+        )
+        print()
 
-        if prompt.lower() == "rollback":
-            rollback_changes(file_path_mapping, playlist_path, playlist_contents)
+        if not destination_directory:
+            destination_directory = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
+
+        organize_result = organize_music_files(playlist_path, destination_directory)
+        while organize_result is None:
+            retry = input(
+                f"Enter '{colors.GREEN}retry{colors.END}' to try again, or press {colors.RED}Enter{colors.END} to exit:"
+            )
+            if retry.lower() == "retry" or retry.lower() == "r":
+                organize_result = organize_music_files(
+                    playlist_path, destination_directory
+                )
+            else:
+                return
+
+        if organize_result:
+            file_path_mapping, playlist_contents = organize_result
+
+            num_files_moved = len(file_path_mapping)
+            print()
+            print_border(
+                f"{colors.BLUE}Total files moved: {num_files_moved}{colors.END}"
+            )
+            print("\n" * 1)
+
+            prompt = input(
+                f"Enter '{colors.RED}rollback{colors.END}' to undo changes, '{colors.GREEN}rerun{colors.END}' to organize again, or press {colors.YELLOW}ENTER{colors.END} to close the script: "
+            )
+            if prompt.lower() == "rollback":
+                rollback_changes(file_path_mapping, playlist_path, playlist_contents)
+            elif prompt.lower() != "rerun" and prompt.lower() != "r":
+                return
 
 
 if __name__ == "__main__":
