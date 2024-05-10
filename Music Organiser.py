@@ -215,13 +215,22 @@ def print_border_line():
 
 
 def main():
+    new_playlist_path = None
+
     while True:
-        print_border(f"{colors.BLUE}KristiaN's Music Organiser v0.5{colors.END}")
+        print_border(f"{colors.BLUE}KristiaN's Music Organiser v0.6{colors.END}")
         print("\n" * 1)
 
-        playlist_path = input(
-            f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
-        )
+        if new_playlist_path:
+            playlist_path = new_playlist_path
+            new_playlist_path = None
+        else:
+            playlist_path = input(
+                f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
+            )
+            if playlist_path.lower() in ["exit", ""]:
+                return
+
         destination_directory = input(
             f"{colors.YELLOW}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
         )
@@ -253,11 +262,23 @@ def main():
             print("\n" * 1)
 
             prompt = input(
-                f"Enter '{colors.RED}rollback{colors.END}' to undo changes, '{colors.GREEN}rerun{colors.END}' to organize again, or press {colors.YELLOW}ENTER{colors.END} to close the script: "
+                f"Enter '{colors.RED}ROLLBACK{colors.END}' to undo changes.\nEnter '{colors.GREEN}MENU{colors.END}' to organize again.\nEnter a new '{colors.YELLOW}PLAYLIST{colors.END}' path to instantly process.\nOr press '{colors.RED}ENTER{colors.END}' to close the script.\n\n{colors.YELLOW}========:{colors.END} "
             )
             if prompt.lower() == "rollback":
                 rollback_changes(file_path_mapping, playlist_path, playlist_contents)
-            elif prompt.lower() != "rerun" and prompt.lower() != "r":
+                response = input(
+                    f"Do you want to '{colors.GREEN}RESTART{colors.END}' or '{colors.RED}EXIT{colors.END}' the script?\n\n{colors.YELLOW}========:{colors.END} "
+                )
+                if response.lower() == "restart":
+                    continue
+                else:
+                    return
+            elif prompt.lower() == "menu":
+                continue
+            elif prompt:
+                new_playlist_path = prompt
+                continue
+            else:
                 return
 
 
