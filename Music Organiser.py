@@ -9,6 +9,7 @@ class colors:
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
+    WHITE = "\033[97m"
     END = "\033[0m"
 
 
@@ -54,14 +55,22 @@ def backup_playlist_file(playlist_path):
     try:
         backup_path = playlist_path + ".bak"
         shutil.copyfile(playlist_path, backup_path)
+        print_border_line()
+        print()
         print(
             f"{colors.GREEN}Backup of the playlist file created: {backup_path}{colors.END}"
         )
+        print()
+        print_border_line()
         return backup_path
     except Exception as e:
+        print_border_line()
+        print()
         print(
             f"{colors.RED}Error creating backup of the playlist file: {e}{colors.END}"
         )
+        print()
+        print_border_line()
         return None
 
 
@@ -84,11 +93,15 @@ def rollback_changes(file_path_mapping):
 
 def organize_music_files(playlist_path, destination_dir=None):
     file_path_mapping = {}
+
     if destination_dir is None:
-        destination_dir = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
+        destination_dir = (
+            r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"  # Set default directory here
+        )
 
     try:
         playlist_path = shlex.split(playlist_path)[0]
+
         backup_path = backup_playlist_file(playlist_path)
         if not backup_path:
             return None
@@ -120,8 +133,9 @@ def organize_music_files(playlist_path, destination_dir=None):
                 destination_file_path = os.path.join(album_dir, filename)
                 shutil.move(line, destination_file_path)
                 print(
-                    f"{colors.GREEN}Moved '{filename}' to '{destination_file_path}'{colors.END}"
+                    f"{colors.GREEN}Moved{colors.END} '{filename}' {colors.GREEN}to{colors.END} '{colors.GREEN}{destination_file_path}{colors.END}'"
                 )
+                print()
 
                 file_path_mapping[line] = destination_file_path
             else:
@@ -146,7 +160,7 @@ def organize_music_files(playlist_path, destination_dir=None):
                     destination_file_path = os.path.join(album_dir, filename)
                     shutil.move(resolved_path, destination_file_path)
                     print(
-                        f"{colors.GREEN}Moved '{filename}' to '{destination_file_path}'{colors.END}"
+                        f"{colors.GREEN}Moved{colors.END} {colors.YELLOW}'{filename}'{colors.END} to {colors.GREEN}'{destination_file_path}'{colors.END}{colors.YELLOW}'{filename}'{colors.END}"
                     )
 
                     file_path_mapping[resolved_path] = destination_file_path
@@ -161,7 +175,9 @@ def organize_music_files(playlist_path, destination_dir=None):
             for new_path in file_path_mapping.values():
                 f.write(f"{new_path}\n")
 
+        print()
         print(f"{colors.GREEN}Music files organized successfully!{colors.END}")
+        print_border_line()
 
         return file_path_mapping
     except Exception as e:
@@ -172,27 +188,38 @@ def organize_music_files(playlist_path, destination_dir=None):
         return None
 
 
+def print_border_line():
+    terminal_width = shutil.get_terminal_size().columns
+    print("═" * terminal_width)
+
+
 def main():
-    print_border("KristiaN's Music Organiser v0.2")
+    print_border("KristiaN's Music Organiser v0.3")
+    print()
 
     playlist_path = input(
-        f"{colors.GREEN}Enter the path to the M3U playlist file: {colors.END}"
+        f"{colors.YELLOW}Enter the path to the M3U playlist file: {colors.END}"
     )
     destination_directory = input(
-        f"{colors.GREEN}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
+        f"{colors.YELLOW}Enter the path to the destination directory for the organized music files (press Enter for default): {colors.END}"
     )
+    print()
 
     if not destination_directory:
-        destination_directory = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"
+        destination_directory = r"PATH_TO_DEFAULT_DESTINATION_DIRECTORY"  # Default directory
 
     file_path_mapping = organize_music_files(playlist_path, destination_directory)
 
     if file_path_mapping:
         num_files_moved = len(file_path_mapping)
-        print(f"{colors.GREEN}Total files moved: {num_files_moved}{colors.END}")
+        print()
+        print_border(f"{colors.GREEN}Total files moved: {num_files_moved}{colors.END}")
+        print()
+        print_border_line()
+        print()
 
     prompt = input(
-        f"{colors.GREEN}Enter 'rollback' to undo changes, or press Enter to close the script: {colors.END}"
+        f"{colors.GREEN}Enter 'rollback' to undo changes, or press Enter to close the script :): {colors.END}"
     )
 
     if prompt.lower() == "rollback":
